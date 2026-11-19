@@ -1,15 +1,15 @@
-"""Payment processing worker.
+"""Worker обработки платежей.
 
-One FastStream app consuming ``payments.new``. For every message it:
+Одно приложение FastStream, читающее ``payments.new``. Для каждого сообщения:
 
-1. loads the payment and skips emulation when it is already terminal
-   (idempotent redelivery),
-2. emulates gateway processing (2-5s, ~90% success),
-3. persists the final status,
-4. delivers the webhook.
+1. загружает платёж и пропускает эмуляцию, если он уже в финальном статусе
+   (идемпотентная повторная доставка),
+2. эмулирует обработку шлюзом (2–5 с, ~90% успеха),
+3. сохраняет финальный статус,
+4. доставляет webhook.
 
-Any failure is retried via per-attempt delay queues with exponential backoff;
-after ``max_attempts`` the message is routed to the dead letter queue.
+Любая ошибка приводит к повтору через очереди задержки с экспоненциальным
+backoff; после ``max_attempts`` сообщение уходит в dead letter queue.
 """
 
 from __future__ import annotations
@@ -43,23 +43,23 @@ logger = logging.getLogger("payments.consumer")
 
 
 async def process_payment(payment_id: uuid.UUID) -> None:
-    """Emulate gateway processing and notify the client."""
+    """Эмулирует обработку шлюзом и уведомляет клиента."""
 
     async with SessionFactory() as session:
-        # ``FOR UPDATE`` serialises concurrent deliveries of the same message:
-        # a second worker blocks until the first commits, then observes the
-        # terminal status and only re-sends the webhook. This keeps processing
-        # idempotent even if the consumer is scaled to several replicas.
+        # ``FOR UPDATE`` сериализует конкурентные доставки одного сообщения:
+        # второй worker блокируется до коммита первого, затем видит финальный
+        # статус и только повторно отправляет webhook. Это сохраняет
+        # идемпотентность обработки даже при нескольких репликах consumer'а.
         payment = await session.get(Payment, payment_id, with_for_update=True)
         if payment is None:
-            logger.warning("Payment %s not found, nothing to do", payment_id)
+            logger.warning("Платёж %s не найден, нечего делать", payment_id)
             return
 
         if payment.status == PaymentStatus.PENDING:
             delay = random.uniform(
                 settings.processing_min_seconds, settings.processing_max_seconds
             )
-            logger.info("Processing payment %s (emulating %.2fs)", payment_id, delay)
+            logger.info("Обрабатываю платёж %s (эмуляция %.2f с)", payment_id, delay)
             await asyncio.sleep(delay)
 
             success = random.random() < settings.success_rate
@@ -69,10 +69,10 @@ async def process_payment(payment_id: uuid.UUID) -> None:
             payment.processed_at = utcnow()
             await session.commit()
             await session.refresh(payment)
-            logger.info("Payment %s -> %s", payment_id, payment.status.value)
+            logger.info("Платёж %s -> %s", payment_id, payment.status.value)
         else:
             logger.info(
-                "Payment %s already %s, resending webhook",
+                "Платёж %s уже %s, повторно отправляю webhook",
                 payment_id,
                 payment.status.value,
             )
@@ -83,12 +83,12 @@ async def process_payment(payment_id: uuid.UUID) -> None:
 async def _schedule_retry(
     event: PaymentCreatedEvent, attempt: int, error: Exception
 ) -> None:
-    """Requeue the message for a delayed retry or move it to the DLQ."""
+    """Переставляет сообщение в отложенный retry или отправляет его в DLQ."""
 
     if attempt < settings.max_attempts:
         next_attempt = attempt + 1
         logger.warning(
-            "Payment %s failed on attempt %s/%s, retrying: %s",
+            "Платёж %s упал на попытке %s/%s, повторяю: %s",
             event.payment_id,
             attempt,
             settings.max_attempts,
@@ -104,7 +104,7 @@ async def _schedule_retry(
         )
     else:
         logger.error(
-            "Payment %s failed after %s attempts, sending to DLQ: %s",
+            "Платёж %s упал после %s попыток, отправляю в DLQ: %s",
             event.payment_id,
             settings.max_attempts,
             error,
@@ -128,10 +128,10 @@ async def handle_payment_created(
     event: PaymentCreatedEvent,
     x_attempt: Annotated[int, Header("x-attempt")] = 1,
 ) -> None:
-    logger.info("Received payment %s (attempt %s)", event.payment_id, x_attempt)
+    logger.info("Получен платёж %s (попытка %s)", event.payment_id, x_attempt)
     try:
         await process_payment(event.payment_id)
-    except Exception as exc:  # noqa: BLE001 - retry/DLQ handled explicitly
+    except Exception as exc:  # noqa: BLE001 - retry/DLQ обрабатываются явно
         await _schedule_retry(event, x_attempt, exc)
 
 

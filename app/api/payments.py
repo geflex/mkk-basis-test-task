@@ -1,4 +1,4 @@
-"""Payment endpoints."""
+"""Эндпоинты платежей."""
 
 from __future__ import annotations
 
@@ -22,10 +22,10 @@ router = APIRouter(
 
 
 def _matches_request(payment: Payment, payload: PaymentCreate) -> bool:
-    """Return ``True`` when a stored payment was created from ``payload``.
+    """Возвращает ``True``, если сохранённый платёж создан из ``payload``.
 
-    Reusing an ``Idempotency-Key`` for a *different* request is a client
-    error, so the caller must not silently hand back the original payment.
+    Повторное использование ``Idempotency-Key`` для *другого* запроса — ошибка
+    клиента, поэтому вызывающий код не должен молча возвращать исходный платёж.
     """
 
     return (
@@ -41,7 +41,7 @@ def _matches_request(payment: Payment, payload: PaymentCreate) -> bool:
     "",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=PaymentCreated,
-    summary="Create a payment",
+    summary="Создать платёж",
 )
 async def create_payment_endpoint(
     payload: PaymentCreate,
@@ -51,12 +51,12 @@ async def create_payment_endpoint(
     ],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> PaymentCreated:
-    """Accept a payment for asynchronous processing.
+    """Принимает платёж в асинхронную обработку.
 
-    The ``Idempotency-Key`` header makes the operation safe to repeat: sending
-    the same key again returns the already created payment instead of creating
-    a new one. Replays are flagged with the ``Idempotency-Replayed`` header,
-    and reusing a key with a different body returns ``409 Conflict``.
+    Заголовок ``Idempotency-Key`` делает операцию безопасной для повторов:
+    повторная отправка того же ключа возвращает уже созданный платёж вместо
+    создания нового. Повторы помечаются заголовком ``Idempotency-Replayed``,
+    а повторное использование ключа с другим телом возвращает ``409 Conflict``.
     """
 
     payment, created = await create_payment(session, payload, idempotency_key)
@@ -65,7 +65,7 @@ async def create_payment_endpoint(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    "Idempotency-Key was already used with a different request"
+                    "Idempotency-Key уже использовался с другим запросом"
                 ),
             )
         response.headers["Idempotency-Replayed"] = "true"
@@ -80,7 +80,7 @@ async def create_payment_endpoint(
 @router.get(
     "/{payment_id}",
     response_model=PaymentDetail,
-    summary="Get a payment",
+    summary="Получить платёж",
 )
 async def get_payment_endpoint(
     payment_id: uuid.UUID,
@@ -89,6 +89,6 @@ async def get_payment_endpoint(
     payment = await get_payment(session, payment_id)
     if payment is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Payment not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Платёж не найден"
         )
     return PaymentDetail.from_model(payment)

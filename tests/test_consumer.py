@@ -1,4 +1,4 @@
-"""Consumer retry / DLQ routing tests (no broker required)."""
+"""Тесты маршрутизации retry/DLQ consumer'а (без брокера)."""
 
 from __future__ import annotations
 

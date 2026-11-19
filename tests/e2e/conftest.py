@@ -1,12 +1,12 @@
-"""End-to-end fixtures.
+"""Фикстуры end-to-end тестов.
 
-These tests exercise the whole service against real PostgreSQL and RabbitMQ
-instances started with testcontainers, plus a real HTTP webhook receiver. The
-API runs in-process on an ASGI transport while the worker consumes through the
-shared broker, so a full create -> outbox -> broker -> process -> webhook
-round-trip is covered.
+Эти тесты проверяют весь сервис на реальных PostgreSQL и RabbitMQ, поднятых
+через testcontainers, плюс реальный HTTP-приёмник webhook. API работает
+внутрипроцессно на ASGI-транспорте, а worker потребляет сообщения через общий
+брокер, поэтому покрывается полный цикл
+create -> outbox -> broker -> process -> webhook.
 
-They are opt-in and excluded from the default run (``addopts = -m "not e2e"``):
+Они опциональны и исключены из обычного прогона (``addopts = -m "not e2e"``):
 
     pytest -m e2e tests/e2e
 """
@@ -43,9 +43,10 @@ class WebhookRequest:
 
 
 class WebhookReceiver:
-    """Threaded HTTP server that records webhook deliveries.
+    """HTTP-сервер в отдельном потоке, записывающий доставки webhook.
 
-    ``/fail`` always answers ``500`` so the retry/DLQ path can be exercised.
+    ``/fail`` всегда отвечает ``500``, чтобы можно было проверить путь
+    retry/DLQ.
     """
 
     def __init__(self) -> None:
@@ -59,7 +60,7 @@ class WebhookReceiver:
         receiver = self
 
         class Handler(BaseHTTPRequestHandler):
-            def do_POST(self) -> None:  # noqa: N802 - stdlib naming
+            def do_POST(self) -> None:  # noqa: N802 - именование из stdlib
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length)
                 with receiver._lock:
@@ -101,8 +102,8 @@ class WebhookReceiver:
                 for request in self.requests:
                     if needle in request.body:
                         return request
-            # Must yield: the worker runs in the same event loop, so blocking
-            # here would prevent the webhook from ever being delivered.
+            # Нужно уступать управление: worker работает в том же event loop,
+            # поэтому блокировка здесь не дала бы доставить webhook.
             await asyncio.sleep(0.05)
         return None
 
@@ -175,8 +176,8 @@ async def stack() -> AsyncIterator[Stack]:
         password="payments",
         dbname="payments",
     )
-    # A plain container with a log-based readiness check avoids the flaky
-    # pika probe that the community RabbitMQ image ships with.
+    # Обычный контейнер с проверкой готовности по логам избегает нестабильного
+    # pika-проба, которая идёт в community-образе RabbitMQ.
     rabbit = (
         DockerContainer("rabbitmq:3.13-management-alpine")
         .with_exposed_ports(RABBITMQ_PORT)
@@ -198,8 +199,9 @@ async def stack() -> AsyncIterator[Stack]:
         f"{rabbit.get_container_host_ip()}:{rabbit.get_exposed_port(RABBITMQ_PORT)}/"
     )
 
-    # Must be set before any ``app.*`` module is imported: settings are read at
-    # import time and the engine is bound to ``DATABASE_URL`` on first import.
+    # Должно быть задано до импорта любого модуля ``app.*``: настройки читаются
+    # во время импорта, а движок привязывается к ``DATABASE_URL`` при первом
+    # импорте.
     os.environ.update(
         DATABASE_URL=database_url,
         RABBITMQ_URL=rabbitmq_url,
@@ -217,7 +219,7 @@ async def stack() -> AsyncIterator[Stack]:
 
     await asyncio.to_thread(_run_migrations)
 
-    import app.consumer  # noqa: F401  - registers the subscriber on the broker
+    import app.consumer  # noqa: F401  - регистрирует подписчика на брокере
     from app.main import app as fastapi_app
 
     receiver = WebhookReceiver()

@@ -1,4 +1,4 @@
-"""Data-access helpers for payments and outbox events."""
+"""Хелперы доступа к данным платежей и событий outbox."""
 
 from __future__ import annotations
 
@@ -31,20 +31,21 @@ async def create_payment(
     payload: PaymentCreate,
     idempotency_key: str,
 ) -> tuple[Payment, bool]:
-    """Create a payment and its outbox event atomically.
+    """Атомарно создаёт платёж и его событие outbox.
 
-    Returns ``(payment, created)`` where ``created`` is ``False`` when the
-    idempotency key was already used. Both the lookup and the unique constraint
-    are used to stay correct under concurrent duplicate requests.
+    Возвращает ``(payment, created)``, где ``created`` равно ``False``, если
+    idempotency-ключ уже использовался. Используются и поиск, и уникальное
+    ограничение, чтобы оставаться корректным при конкурентных дублирующих
+    запросах.
     """
 
     existing = await get_by_idempotency_key(session, idempotency_key)
     if existing is not None:
         return existing, False
 
-    # The primary key is generated client-side so that the outbox payload can
-    # reference it without an extra round-trip. Committing both rows in a single
-    # transaction is what makes the outbox pattern atomic.
+    # Первичный ключ генерируется на клиенте, чтобы payload outbox мог
+    # ссылаться на него без дополнительного обращения к БД. Именно коммит
+    # обеих строк в одной транзакции делает паттерн outbox атомарным.
     payment = Payment(
         id=uuid.uuid4(),
         amount=payload.amount,
@@ -64,14 +65,15 @@ async def create_payment(
     )
 
     try:
-        # ``commit`` flushes the pending INSERTs, so a concurrent request that
-        # committed first surfaces here as an ``IntegrityError`` and is caught.
+        # ``commit`` выполняет отложенные INSERT'ы, поэтому конкурентный
+        # запрос, закоммитившийся первым, проявляется здесь как
+        # ``IntegrityError`` и перехватывается.
         await session.commit()
     except IntegrityError:
-        # A concurrent request won the race for this idempotency key.
+        # Конкурентный запрос выиграл гонку за этот idempotency-ключ.
         await session.rollback()
         existing = await get_by_idempotency_key(session, idempotency_key)
-        if existing is None:  # pragma: no cover - extremely unlikely
+        if existing is None:  # pragma: no cover - крайне маловероятно
             raise
         return existing, False
 

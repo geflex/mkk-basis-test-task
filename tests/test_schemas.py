@@ -1,4 +1,4 @@
-"""Schema validation tests."""
+"""Тесты валидации схем."""
 
 from __future__ import annotations
 

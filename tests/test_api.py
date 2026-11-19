@@ -1,4 +1,4 @@
-"""Payment endpoint helper tests (no HTTP client required)."""
+"""Тесты хелперов эндпоинтов платежей (без HTTP-клиента)."""
 
 from __future__ import annotations
 

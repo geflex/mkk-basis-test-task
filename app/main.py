@@ -1,4 +1,4 @@
-"""FastAPI application entrypoint."""
+"""Точка входа приложения FastAPI."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     publisher = OutboxPublisher(SessionFactory, broker)
     task = asyncio.create_task(publisher.run())
 
-    logger.info("API started")
+    logger.info("API запущен")
     try:
         yield
     finally:
@@ -36,15 +36,15 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         with contextlib.suppress(asyncio.CancelledError):
             await task
         await broker.stop()
-        logger.info("API stopped")
+        logger.info("API остановлен")
 
 
 app = FastAPI(
-    title="Payment Processing Service",
+    title="Сервис процессинга платежей",
     version="1.0.0",
     description=(
-        "Asynchronous payment processing with a transactional outbox, "
-        "retries and a dead letter queue."
+        "Асинхронная обработка платежей с транзакционным outbox, "
+        "повторами и dead letter queue."
     ),
     lifespan=lifespan,
 )

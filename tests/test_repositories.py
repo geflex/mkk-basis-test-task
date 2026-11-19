@@ -1,4 +1,4 @@
-"""Repository-level idempotency tests (no real database required)."""
+"""Тесты идемпотентности на уровне репозитория (без реальной БД)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from app.schemas import PaymentCreate
 
 def _session() -> AsyncMock:
     session = AsyncMock()
-    # ``add`` is synchronous on AsyncSession; keep the mock in sync too.
+    # ``add`` синхронный у AsyncSession; мок тоже делаем синхронным.
     session.add = MagicMock()
     return session
 
@@ -68,7 +68,7 @@ async def test_create_payment_returns_existing_without_insert() -> None:
 
 
 async def test_create_payment_recovers_from_race_on_commit() -> None:
-    """A concurrent request that committed first must not surface as a 500."""
+    """Конкурентный запрос, закоммитившийся первым, не должен приводить к 500."""
 
     session = _session()
     session.commit.side_effect = IntegrityError("INSERT", {}, Exception("duplicate"))

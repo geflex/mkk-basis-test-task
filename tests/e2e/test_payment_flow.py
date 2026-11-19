@@ -1,6 +1,6 @@
-"""End-to-end payment lifecycle tests.
+"""End-to-end тесты жизненного цикла платежа.
 
-Run with real infrastructure:
+Запуск с реальной инфраструктурой:
 
     pytest -m e2e tests/e2e
 """
@@ -90,7 +90,7 @@ async def test_idempotent_replay_returns_same_payment(stack: Stack) -> None:
     assert "Idempotency-Replayed" not in first.headers
     assert second.headers.get("Idempotency-Replayed") == "true"
 
-    # Only one payment row and one event must have been created.
+    # Должны быть созданы только одна строка платежа и одно событие.
     payment_id = first.json()["payment_id"]
     detail = await stack.wait_for_status(payment_id, "succeeded")
     assert detail["idempotency_key"] == key
@@ -131,8 +131,8 @@ async def test_webhook_failure_retries_then_dead_letters(stack: Stack) -> None:
     )
     payment_id = response.json()["payment_id"]
 
-    # Processing itself succeeds; only the webhook keeps failing, so the
-    # message should exhaust its retries and land on the DLQ.
+    # Сама обработка успешна; падает только webhook, поэтому сообщение
+    # должно исчерпать попытки и попасть в DLQ.
     await stack.wait_for_status(payment_id, "succeeded")
 
     deadline = time.monotonic() + 25

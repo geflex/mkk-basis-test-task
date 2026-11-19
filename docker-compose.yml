@@ -35,7 +35,7 @@ services:
     build: .
     command: ["alembic", "upgrade", "head"]
     environment:
-      API_KEY: ${API_KEY:?set API_KEY (see .env.example)}
+      API_KEY: ${API_KEY:?задайте API_KEY (см. .env.example)}
       DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
     depends_on:
       postgres:
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
     command: ["./docker/entrypoint-api.sh"]
     environment:
-      API_KEY: ${API_KEY:?set API_KEY (see .env.example)}
+      API_KEY: ${API_KEY:?задайте API_KEY (см. .env.example)}
       DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
     command: ["./docker/entrypoint-consumer.sh"]
     environment:
-      API_KEY: ${API_KEY:?set API_KEY (see .env.example)}
+      API_KEY: ${API_KEY:?задайте API_KEY (см. .env.example)}
       DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}

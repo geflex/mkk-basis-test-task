@@ -1,4 +1,4 @@
-"""Pydantic v2 schemas used by the API and the message broker."""
+"""Схемы Pydantic v2, используемые API и брокером сообщений."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ _LOCAL_SUFFIXES = (".localhost", ".local", ".internal")
 
 
 def _is_private_host(host: str) -> bool:
-    """Return ``True`` for hosts that must not receive server-side requests."""
+    """Возвращает ``True`` для хостов, которым нельзя отправлять запросы с сервера."""
 
     host = host.strip().lower().rstrip(".")
     if host in _LOCAL_HOSTNAMES or host.endswith(_LOCAL_SUFFIXES):
@@ -37,7 +37,7 @@ def _is_private_host(host: str) -> bool:
 
 
 class PaymentCreate(BaseModel):
-    """Request body for ``POST /api/v1/payments``."""
+    """Тело запроса для ``POST /api/v1/payments``."""
 
     amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
     currency: Currency
@@ -49,7 +49,7 @@ class PaymentCreate(BaseModel):
     @classmethod
     def _limit_metadata(cls, value: dict) -> dict:
         if len(value) > 50:
-            raise ValueError("metadata must contain at most 50 keys")
+            raise ValueError("metadata должен содержать не более 50 ключей")
         return value
 
     @field_validator("webhook_url")
@@ -60,13 +60,14 @@ class PaymentCreate(BaseModel):
         host = value.host
         if not host or _is_private_host(host):
             raise ValueError(
-                "webhook_url must not target a private, loopback or link-local host"
+                "webhook_url не должен указывать на приватный, loopback- "
+                "или link-local хост"
             )
         return value
 
 
 class PaymentCreated(BaseModel):
-    """Response returned when a payment has been accepted for processing."""
+    """Ответ, возвращаемый когда платёж принят в обработку."""
 
     payment_id: uuid.UUID
     status: PaymentStatus
@@ -74,7 +75,7 @@ class PaymentCreated(BaseModel):
 
 
 class PaymentDetail(BaseModel):
-    """Full payment representation."""
+    """Полное представление платежа."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -106,6 +107,6 @@ class PaymentDetail(BaseModel):
 
 
 class PaymentCreatedEvent(BaseModel):
-    """Event published to ``payments.new`` and consumed by the worker."""
+    """Событие, публикуемое в ``payments.new`` и потребляемое воркером."""
 
     payment_id: uuid.UUID

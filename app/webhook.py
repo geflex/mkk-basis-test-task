@@ -1,9 +1,9 @@
-"""Webhook delivery with its own retry/backoff.
+"""Доставка webhook с собственными повторами/backoff.
 
-Notifications are sent as a deterministic JSON body so that an optional HMAC
-signature over the exact bytes can be verified by the receiver. Every request
-also carries an ``X-Webhook-Id`` header that is stable for a given
-payment/status, letting the receiver deduplicate redeliveries.
+Уведомления отправляются с детерминированным JSON-телом, чтобы получатель мог
+проверить необязательную HMAC-подпись по точным байтам. Каждый запрос также
+несёт заголовок ``X-Webhook-Id``, стабильный для пары «платёж/статус», что
+позволяет получателю дедуплицировать повторные доставки.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class WebhookDeliveryError(RuntimeError):
-    """Raised when a webhook could not be delivered after all local retries."""
+    """Возбуждается, когда webhook не удалось доставить после всех локальных попыток."""
 
 
 def build_payload(payment: Payment) -> dict:
@@ -38,13 +38,13 @@ def build_payload(payment: Payment) -> dict:
 
 
 def serialize_payload(payload: dict) -> bytes:
-    """Canonical JSON encoding of a webhook payload."""
+    """Каноническое JSON-кодирование payload'а webhook."""
 
     return json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def sign_payload(body: bytes, secret: str) -> str:
-    """Return the ``sha256=<hex>`` HMAC signature for ``body``."""
+    """Возвращает HMAC-подпись ``sha256=<hex>`` для ``body``."""
 
     digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
     return f"sha256={digest}"
@@ -61,10 +61,11 @@ def build_headers(payment: Payment, body: bytes) -> dict[str, str]:
 
 
 async def send_webhook(payment: Payment) -> None:
-    """POST the payment result to ``payment.webhook_url``.
+    """Отправляет результат платежа методом POST на ``payment.webhook_url``.
 
-    Retries ``webhook_max_retries`` times with a linear backoff. If every
-    attempt fails the error is re-raised so the broker-level retry can kick in.
+    Делает ``webhook_max_retries`` попыток с линейной задержкой. Если все
+    попытки провалились, ошибка пробрасывается дальше, чтобы включился retry
+    на уровне брокера.
     """
 
     body = serialize_payload(build_payload(payment))
@@ -78,12 +79,12 @@ async def send_webhook(payment: Payment) -> None:
                     payment.webhook_url, content=body, headers=headers
                 )
                 response.raise_for_status()
-            logger.info("Webhook delivered for payment %s (attempt %s)", payment.id, attempt)
+            logger.info("Webhook доставлен для платежа %s (попытка %s)", payment.id, attempt)
             return
-        except Exception as exc:  # noqa: BLE001 - retried below
+        except Exception as exc:  # noqa: BLE001 - повторяется ниже
             last_error = exc
             logger.warning(
-                "Webhook attempt %s/%s failed for payment %s: %s",
+                "Попытка webhook %s/%s для платежа %s провалилась: %s",
                 attempt,
                 settings.webhook_max_retries,
                 payment.id,
@@ -93,6 +94,6 @@ async def send_webhook(payment: Payment) -> None:
                 await asyncio.sleep(settings.webhook_retry_delay * attempt)
 
     raise WebhookDeliveryError(
-        f"webhook for payment {payment.id} failed after "
-        f"{settings.webhook_max_retries} attempts"
+        f"webhook для платежа {payment.id} не доставлен после "
+        f"{settings.webhook_max_retries} попыток"
     ) from last_error

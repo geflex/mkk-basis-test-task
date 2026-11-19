@@ -1,9 +1,9 @@
-"""Transactional outbox publisher.
+"""Публикатор транзакционного outbox.
 
-A background task polls the ``outbox`` table for events that have not been
-published yet, forwards them to RabbitMQ and marks them as published. Running
-it with ``SELECT ... FOR UPDATE SKIP LOCKED`` makes it safe to run several
-publishers concurrently.
+Фоновая задача опрашивает таблицу ``outbox`` на предмет ещё не опубликованных
+событий, пересылает их в RabbitMQ и помечает опубликованными. Использование
+``SELECT ... FOR UPDATE SKIP LOCKED`` позволяет безопасно запускать несколько
+публикаторов одновременно.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ class OutboxPublisher:
         self._broker = broker
 
     async def publish_pending(self) -> int:
-        """Publish one batch of pending events; returns how many were sent."""
+        """Публикует один батч ожидающих событий; возвращает число отправленных."""
 
         published = 0
         async with self._session_factory() as session:
@@ -60,18 +60,18 @@ class OutboxPublisher:
                 await session.commit()
 
         if published:
-            logger.info("Outbox: published %s event(s)", published)
+            logger.info("Outbox: опубликовано событий: %s", published)
         return published
 
     async def run(self) -> None:
-        """Continuously relay pending events until cancelled."""
+        """Непрерывно пересылает ожидающие события до отмены."""
 
-        logger.info("Outbox publisher started (interval=%.2fs)", settings.outbox_poll_interval)
+        logger.info("Публикатор outbox запущен (интервал=%.2f с)", settings.outbox_poll_interval)
         while True:
             try:
                 await self.publish_pending()
             except asyncio.CancelledError:
                 raise
-            except Exception:  # pragma: no cover - resilience
-                logger.exception("Outbox publisher iteration failed")
+            except Exception:  # pragma: no cover - устойчивость
+                logger.exception("Итерация публикатора outbox завершилась ошибкой")
             await asyncio.sleep(settings.outbox_poll_interval)

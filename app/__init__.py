@@ -1,3 +1,3 @@
-"""Async payment processing service."""
+"""Асинхронный сервис процессинга платежей."""
 
 __version__ = "1.0.0"

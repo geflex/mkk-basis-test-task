@@ -1,7 +1,7 @@
 [project]
 name = "payments-mkk"
 version = "1.0.0"
-description = "Asynchronous payment processing with a transactional outbox, retries and a dead letter queue."
+description = "Асинхронная обработка платежей с транзакционным outbox, повторами и dead letter queue."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115,<1.0",

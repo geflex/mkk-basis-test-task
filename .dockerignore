@@ -1,11 +1,11 @@
-# Version control and editor metadata
+# Метаданные системы контроля версий и редакторов
 .git
 .gitignore
 .gitattributes
 .idea
 .vscode
 
-# Local Python environments and caches
+# Локальные Python-окружения и кэши
 .venv
 venv
 __pycache__
@@ -15,10 +15,10 @@ __pycache__
 .mypy_cache
 .ruff_cache
 
-# Local configuration and secrets
+# Локальная конфигурация и секреты
 .env
 
-# Files not needed inside the runtime image
+# Файлы, не нужные внутри runtime-образа
 tests
 examples
 *.pdf

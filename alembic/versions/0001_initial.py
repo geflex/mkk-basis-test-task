@@ -1,4 +1,4 @@
-"""Initial schema: payments and outbox.
+"""Начальная схема: payments и outbox.
 
 Revision ID: 0001_initial
 Revises:

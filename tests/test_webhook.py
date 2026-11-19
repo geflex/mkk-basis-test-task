@@ -1,4 +1,4 @@
-"""Webhook delivery tests."""
+"""Тесты доставки webhook."""
 
 from __future__ import annotations
 

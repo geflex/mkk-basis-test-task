@@ -1,4 +1,4 @@
-"""Async database engine and session management."""
+"""Асинхронный движок БД и управление сессиями."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ SessionFactory: async_sessionmaker[AsyncSession] = async_sessionmaker(
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency that yields a request-scoped session."""
+    """Зависимость FastAPI, возвращающая сессию в рамках запроса."""
 
     async with SessionFactory() as session:
         yield session

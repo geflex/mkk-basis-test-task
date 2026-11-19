@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models: ``payments`` and ``outbox``."""
+"""ORM-модели SQLAlchemy: ``payments`` и ``outbox``."""
 
 from __future__ import annotations
 
@@ -13,17 +13,17 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
-    """Declarative base class."""
+    """Декларативный базовый класс."""
 
 
 def utcnow() -> datetime:
-    """Timezone-aware UTC timestamp."""
+    """Метка времени UTC с учётом часового пояса."""
 
     return datetime.now(timezone.utc)
 
 
 def _enum_values(enum_type: type[enum.Enum]) -> list[str]:
-    """Persist enum *values* (e.g. ``"pending"``), not member names."""
+    """Сохраняет *значения* enum (например, ``"pending"``), а не имена членов."""
 
     return [member.value for member in enum_type]
 
@@ -41,7 +41,7 @@ class Currency(str, enum.Enum):
 
 
 class Payment(Base):
-    """A payment request and its processing result."""
+    """Запрос на оплату и результат его обработки."""
 
     __tablename__ = "payments"
 
@@ -77,15 +77,16 @@ class Payment(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    def __repr__(self) -> str:  # pragma: no cover - debugging helper
+    def __repr__(self) -> str:  # pragma: no cover - вспомогательный метод для отладки
         return f"<Payment id={self.id} status={self.status} amount={self.amount}>"
 
 
 class OutboxEvent(Base):
-    """Transactional outbox record.
+    """Запись транзакционного outbox.
 
-    Events are written in the same transaction as the payment, then relayed to
-    RabbitMQ by a background publisher, which guarantees at-least-once delivery.
+    События пишутся в той же транзакции, что и платёж, а затем фоновый
+    публикатор пересылает их в RabbitMQ, что гарантирует доставку
+    «как минимум один раз».
     """
 
     __tablename__ = "outbox"

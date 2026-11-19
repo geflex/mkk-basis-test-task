@@ -1,4 +1,4 @@
-"""API routers."""
+"""Роутеры API."""
 
 from app.api.payments import router as payments_router
 

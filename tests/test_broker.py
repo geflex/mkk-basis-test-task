@@ -1,4 +1,4 @@
-"""RabbitMQ topology tests (no broker required)."""
+"""Тесты топологии RabbitMQ (без брокера)."""
 
 from __future__ import annotations
 

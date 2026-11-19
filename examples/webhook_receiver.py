@@ -1,14 +1,14 @@
-"""Tiny webhook receiver for local testing.
+"""Маленький приёмник webhook для локального тестирования.
 
-Run it on the host (or in the same network as the containers)::
+Запустите его на хосте (или в той же сети, что и контейнеры)::
 
     python examples/webhook_receiver.py --port 9000
 
-Then pass ``--webhook-url http://<reachable-host>:9000/webhook`` when creating
-a payment. Every notification is printed as pretty JSON.
+Затем передайте ``--webhook-url http://<доступный-хост>:9000/webhook`` при
+создании платежа. Каждое уведомление печатается как отформатированный JSON.
 
-Pass ``--secret`` to also verify the ``X-Webhook-Signature`` HMAC; it must
-match ``WEBHOOK_SECRET`` configured for the service.
+Передайте ``--secret``, чтобы также проверять HMAC ``X-Webhook-Signature``; он
+должен совпадать с ``WEBHOOK_SECRET``, настроенным для сервиса.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.secret:
             provided = self.headers.get("X-Webhook-Signature", "")
             if not hmac.compare_digest(_sign(raw, self.secret), provided):
-                self._respond(401, {"error": "invalid signature"})
+                self._respond(401, {"error": "неверная подпись"})
                 return
 
         try:
@@ -43,7 +43,7 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             payload = {"raw": raw.decode("utf-8", "replace")}
 
-        print("Webhook received:")
+        print("Webhook получен:")
         print("  X-Webhook-Id:", self.headers.get("X-Webhook-Id"))
         print(json.dumps(payload, indent=2, ensure_ascii=False))
 
@@ -57,24 +57,24 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def log_message(self, *args) -> None:  # silence default logging
+    def log_message(self, *args) -> None:  # отключаем логирование по умолчанию
         return
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Webhook receiver")
+    parser = argparse.ArgumentParser(description="Приёмник webhook")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=9000)
     parser.add_argument(
         "--secret",
         default=None,
-        help="Verify the X-Webhook-Signature HMAC using this shared secret",
+        help="Проверять HMAC X-Webhook-Signature с помощью этого общего секрета",
     )
     args = parser.parse_args()
 
     Handler.secret = args.secret
     server = HTTPServer((args.host, args.port), Handler)
-    print(f"Listening for webhooks on http://{args.host}:{args.port}/webhook")
+    print(f"Слушаю webhook'и на http://{args.host}:{args.port}/webhook")
     server.serve_forever()
 
 

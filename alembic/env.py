@@ -1,4 +1,4 @@
-"""Alembic environment (async)."""
+"""Окружение Alembic (async)."""
 
 from __future__ import annotations
 
