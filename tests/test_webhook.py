@@ -25,7 +25,7 @@ def _payment() -> Payment:
         amount=Decimal("10.00"),
         currency=Currency.USD,
         description="order",
-        status=PaymentStatus.succeeded,
+        status=PaymentStatus.SUCCEEDED,
         processed_at=utcnow(),
         webhook_url="https://example.com/hook",
     )

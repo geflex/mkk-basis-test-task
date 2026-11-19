@@ -83,7 +83,7 @@ def test_payment_detail_serialises_metadata() -> None:
         currency=Currency.RUB,
         description=None,
         metadata={"a": 1},
-        status=PaymentStatus.pending,
+        status=PaymentStatus.PENDING,
         idempotency_key="k",
         webhook_url="https://example.com/hook",
         created_at="2026-01-01T00:00:00Z",

@@ -99,7 +99,8 @@ docker compose up --build
 ```
 
 Поднимаются четыре сервиса: `postgres`, `rabbitmq`, `api` (порт `8000`) и
-`consumer`. Миграции применяются автоматически при старте `api`.
+`consumer`. Миграции применяются отдельным сервисом `migrate`, который
+завершается до старта `api` и `consumer`.
 
 * Swagger UI: http://localhost:8000/docs
 * RabbitMQ Management: http://localhost:15672 (guest / guest)
@@ -208,13 +209,14 @@ app/
 ├── consumer.py      # FastStream consumer: обработка, retry, DLQ
 ├── api/payments.py  # эндпоинты создания и получения платежа
 ├── broker.py        # топология RabbitMQ и общий брокер
-├── outbox.py        # reley транзакционного outbox
-├── webhook.py       # доставка webhook с ретраями
+├── outbox.py        # relay транзакционного outbox
+├── webhook.py       # доставка webhook с ретраями и подписью
 ├── repositories.py  # доступ к данным
 ├── models.py        # ORM-модели payments и outbox
 ├── schemas.py       # Pydantic-схемы
 ├── security.py      # проверка X-API-Key
 ├── config.py        # настройки из окружения
+├── logging_setup.py # единая настройка логирования
 └── db.py            # async-движок и сессии
 alembic/             # миграции
 docker/              # entrypoint-скрипты

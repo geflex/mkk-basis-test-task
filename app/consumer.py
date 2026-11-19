@@ -33,14 +33,12 @@ from app.broker import (
 )
 from app.config import settings
 from app.db import SessionFactory
+from app.logging_setup import configure_logging
 from app.models import Payment, PaymentStatus, utcnow
 from app.schemas import PaymentCreatedEvent
 from app.webhook import send_webhook
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-)
+configure_logging()
 logger = logging.getLogger("payments.consumer")
 
 
@@ -57,7 +55,7 @@ async def process_payment(payment_id: uuid.UUID) -> None:
             logger.warning("Payment %s not found, nothing to do", payment_id)
             return
 
-        if payment.status == PaymentStatus.pending:
+        if payment.status == PaymentStatus.PENDING:
             delay = random.uniform(
                 settings.processing_min_seconds, settings.processing_max_seconds
             )
@@ -66,7 +64,7 @@ async def process_payment(payment_id: uuid.UUID) -> None:
 
             success = random.random() < settings.success_rate
             payment.status = (
-                PaymentStatus.succeeded if success else PaymentStatus.failed
+                PaymentStatus.SUCCEEDED if success else PaymentStatus.FAILED
             )
             payment.processed_at = utcnow()
             await session.commit()

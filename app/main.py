@@ -13,12 +13,10 @@ from fastapi import FastAPI
 from app.api import payments_router
 from app.broker import broker, declare_topology
 from app.db import SessionFactory
+from app.logging_setup import configure_logging
 from app.outbox import OutboxPublisher
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-)
+configure_logging()
 logger = logging.getLogger("payments.api")
 
 

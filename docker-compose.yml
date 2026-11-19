@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: payments
       POSTGRES_PASSWORD: payments
@@ -17,6 +18,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -29,18 +31,31 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      API_KEY: ${API_KEY:?set API_KEY (see .env.example)}
+      DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build: .
+    restart: unless-stopped
     command: ["./docker/entrypoint-api.sh"]
     environment:
       API_KEY: ${API_KEY:?set API_KEY (see .env.example)}
       DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      ALLOW_PRIVATE_WEBHOOK_HOSTS: ${ALLOW_PRIVATE_WEBHOOK_HOSTS:-false}
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
     healthcheck:
@@ -51,14 +66,16 @@ services:
 
   consumer:
     build: .
+    restart: unless-stopped
     command: ["./docker/entrypoint-consumer.sh"]
     environment:
       API_KEY: ${API_KEY:?set API_KEY (see .env.example)}
       DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
     depends_on:
-      api:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
 

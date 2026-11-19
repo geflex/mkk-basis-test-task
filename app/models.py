@@ -23,9 +23,9 @@ def utcnow() -> datetime:
 
 
 class PaymentStatus(str, enum.Enum):
-    pending = "pending"
-    succeeded = "succeeded"
-    failed = "failed"
+    PENDING = "pending"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
 
 
 class Currency(str, enum.Enum):
@@ -53,7 +53,7 @@ class Payment(Base):
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus, name="payment_status"),
         nullable=False,
-        default=PaymentStatus.pending,
+        default=PaymentStatus.PENDING,
         index=True,
     )
     idempotency_key: Mapped[str] = mapped_column(
