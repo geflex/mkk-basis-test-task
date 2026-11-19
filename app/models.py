@@ -22,6 +22,12 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _enum_values(enum_type: type[enum.Enum]) -> list[str]:
+    """Persist enum *values* (e.g. ``"pending"``), not member names."""
+
+    return [member.value for member in enum_type]
+
+
 class PaymentStatus(str, enum.Enum):
     PENDING = "pending"
     SUCCEEDED = "succeeded"
@@ -44,14 +50,18 @@ class Payment(Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[Currency] = mapped_column(
-        Enum(Currency, name="currency"), nullable=False
+        Enum(Currency, name="currency", values_callable=_enum_values), nullable=False
     )
     description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     meta: Mapped[dict] = mapped_column(
         "metadata", JSONB, nullable=False, default=dict
     )
     status: Mapped[PaymentStatus] = mapped_column(
-        Enum(PaymentStatus, name="payment_status"),
+        Enum(
+            PaymentStatus,
+            name="payment_status",
+            values_callable=_enum_values,
+        ),
         nullable=False,
         default=PaymentStatus.PENDING,
         index=True,
