@@ -48,7 +48,11 @@ async def process_payment(payment_id: uuid.UUID) -> None:
     """Emulate gateway processing and notify the client."""
 
     async with SessionFactory() as session:
-        payment = await session.get(Payment, payment_id)
+        # ``FOR UPDATE`` serialises concurrent deliveries of the same message:
+        # a second worker blocks until the first commits, then observes the
+        # terminal status and only re-sends the webhook. This keeps processing
+        # idempotent even if the consumer is scaled to several replicas.
+        payment = await session.get(Payment, payment_id, with_for_update=True)
         if payment is None:
             logger.warning("Payment %s not found, nothing to do", payment_id)
             return
