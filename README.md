@@ -177,6 +177,21 @@ pytest
 Юнит-тесты не требуют БД и брокера: проверяются валидация схем, логика
 retry/DLQ и доставка webhook.
 
+### E2E-тесты
+
+Помимо юнит-тестов есть e2e-набор, который поднимает реальные PostgreSQL и
+RabbitMQ через [`testcontainers`](https://testcontainers-python.readthedocs.io/),
+запускает приложение и встроенный HTTP-приёмник webhook и проверяет полный цикл
+`POST -> outbox -> RabbitMQ -> обработка -> webhook`:
+
+```bash
+pip install -r requirements-dev.txt
+pytest -m e2e tests/e2e
+```
+
+Требуется запущенный Docker. Набор исключён из обычного прогона `pytest`
+(в `addopts` стоит `-m "not e2e"`).
+
 ## Переменные окружения
 
 | Переменная | По умолчанию | Описание |
@@ -221,7 +236,7 @@ app/
 alembic/             # миграции
 docker/              # entrypoint-скрипты
 examples/            # приёмник webhook для ручной проверки
-tests/               # юнит-тесты
+tests/               # юнит-тесты (tests/e2e — e2e на testcontainers)
 ```
 
 ## Принятые решения
