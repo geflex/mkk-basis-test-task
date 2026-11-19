@@ -108,9 +108,9 @@ async def test_idempotency_key_reuse_with_other_body_conflicts(stack: Stack) -> 
 async def test_failed_processing_marks_payment_failed(
     stack: Stack, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import app.consumer as consumer
+    from app.core.config import get_processing_settings
 
-    monkeypatch.setattr(consumer.settings, "success_rate", 0.0)
+    monkeypatch.setattr(get_processing_settings(), "success_rate", 0.0)
 
     response = await stack.create_payment(key=f"fail-{uuid.uuid4()}")
     payment_id = response.json()["payment_id"]
@@ -149,15 +149,18 @@ async def test_webhook_failure_retries_then_dead_letters(stack: Stack) -> None:
 async def test_webhook_signature_when_secret_configured(
     stack: Stack, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import app.webhook as webhook
+    from pydantic import SecretStr
 
-    monkeypatch.setattr(webhook.settings, "webhook_secret", "e2e-secret")
+    from app.core.config import get_webhook_settings
+    from app.services.webhook import sign_payload
+
+    monkeypatch.setattr(get_webhook_settings(), "secret", SecretStr("e2e-secret"))
 
     response = await stack.create_payment(key=f"sig-{uuid.uuid4()}")
     payment_id = response.json()["payment_id"]
 
     webhook_request = await stack.receiver.wait_for_payment(payment_id)
     assert webhook_request is not None
-    assert webhook_request.headers.get("x-webhook-signature") == webhook.sign_payload(
+    assert webhook_request.headers.get("x-webhook-signature") == sign_payload(
         webhook_request.body, "e2e-secret"
     )

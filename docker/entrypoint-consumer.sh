@@ -2,4 +2,4 @@
 set -e
 
 echo "Запускаю consumer..."
-exec faststream run app.consumer:app
+exec faststream run app.workers.payment_consumer:app

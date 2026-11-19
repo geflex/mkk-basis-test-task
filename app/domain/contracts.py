@@ -1,39 +1,20 @@
-"""Схемы Pydantic v2, используемые API и брокером сообщений."""
+"""Контракты приложения: входные DTO, ответы API и сообщения брокера.
+
+Модуль не зависит от SQLAlchemy — ORM-модели, в свою очередь, не зависят от
+API-схем. Это позволяет использовать контракты и в HTTP-слое, и в consumer'е.
+"""
 
 from __future__ import annotations
 
-import ipaddress
 import uuid
 from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
-from app.config import settings
-from app.models import Currency, Payment, PaymentStatus
-
-_LOCAL_HOSTNAMES = ("localhost",)
-_LOCAL_SUFFIXES = (".localhost", ".local", ".internal")
-
-
-def _is_private_host(host: str) -> bool:
-    """Возвращает ``True`` для хостов, которым нельзя отправлять запросы с сервера."""
-
-    host = host.strip().lower().rstrip(".")
-    if host in _LOCAL_HOSTNAMES or host.endswith(_LOCAL_SUFFIXES):
-        return True
-    try:
-        address = ipaddress.ip_address(host.strip("[]"))
-    except ValueError:
-        return False
-    return (
-        address.is_private
-        or address.is_loopback
-        or address.is_link_local
-        or address.is_reserved
-        or address.is_multicast
-        or address.is_unspecified
-    )
+from app.core.config import get_webhook_settings
+from app.core.net import is_private_host
+from app.domain.enums import Currency, PaymentStatus
 
 
 class PaymentCreate(BaseModel):
@@ -55,10 +36,10 @@ class PaymentCreate(BaseModel):
     @field_validator("webhook_url")
     @classmethod
     def _reject_private_webhook_host(cls, value: HttpUrl) -> HttpUrl:
-        if settings.allow_private_webhook_hosts:
+        if get_webhook_settings().allow_private_hosts:
             return value
         host = value.host
-        if not host or _is_private_host(host):
+        if not host or is_private_host(host):
             raise ValueError(
                 "webhook_url не должен указывать на приватный, loopback- "
                 "или link-local хост"
@@ -67,7 +48,7 @@ class PaymentCreate(BaseModel):
 
 
 class PaymentCreated(BaseModel):
-    """Ответ, возвращаемый когда платёж принят в обработку."""
+    """Ответ, возвращаемый, когда платёж принят в обработку."""
 
     payment_id: uuid.UUID
     status: PaymentStatus
@@ -89,21 +70,6 @@ class PaymentDetail(BaseModel):
     webhook_url: str
     created_at: datetime
     processed_at: datetime | None
-
-    @classmethod
-    def from_model(cls, payment: Payment) -> "PaymentDetail":
-        return cls(
-            id=payment.id,
-            amount=payment.amount,
-            currency=payment.currency,
-            description=payment.description,
-            metadata=payment.meta,
-            status=payment.status,
-            idempotency_key=payment.idempotency_key,
-            webhook_url=payment.webhook_url,
-            created_at=payment.created_at,
-            processed_at=payment.processed_at,
-        )
 
 
 class PaymentCreatedEvent(BaseModel):

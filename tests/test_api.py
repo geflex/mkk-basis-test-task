@@ -1,13 +1,14 @@
-"""Тесты хелперов эндпоинтов платежей (без HTTP-клиента)."""
+"""Тесты проверки idempotency-запроса в сервисе платежей."""
 
 from __future__ import annotations
 
 import uuid
 from decimal import Decimal
 
-from app.api.payments import _matches_request
-from app.models import Currency, Payment
-from app.schemas import PaymentCreate
+from app.db.models import Payment
+from app.domain.contracts import PaymentCreate
+from app.domain.enums import Currency
+from app.services.payments import PaymentService
 
 
 def _payment() -> Payment:
@@ -35,19 +36,21 @@ def _payload(**overrides: object) -> PaymentCreate:
 
 
 def test_matches_identical_request() -> None:
-    assert _matches_request(_payment(), _payload()) is True
+    assert PaymentService.matches(_payment(), _payload()) is True
 
 
 def test_mismatch_on_amount() -> None:
-    assert _matches_request(_payment(), _payload(amount=Decimal("20.00"))) is False
+    assert PaymentService.matches(_payment(), _payload(amount=Decimal("20.00"))) is False
 
 
 def test_mismatch_on_metadata() -> None:
-    assert _matches_request(_payment(), _payload(metadata={"order": 2})) is False
+    assert PaymentService.matches(_payment(), _payload(metadata={"order": 2})) is False
 
 
 def test_mismatch_on_webhook() -> None:
     assert (
-        _matches_request(_payment(), _payload(webhook_url="https://example.com/other"))
+        PaymentService.matches(
+            _payment(), _payload(webhook_url="https://example.com/other")
+        )
         is False
     )

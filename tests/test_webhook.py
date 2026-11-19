@@ -9,18 +9,55 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-import app.webhook as webhook
-from app.models import Currency, Payment, PaymentStatus, utcnow
-from app.webhook import (
+import app.services.webhook as webhook
+from app.core.config import WebhookSettings
+from app.core.net import UnsafeWebhookTarget
+from app.db.models import Payment
+from app.domain.enums import Currency, PaymentStatus
+from app.domain.time import utcnow
+from app.services.webhook import (
     WebhookDeliveryError,
+    WebhookNotification,
+    WebhookSender,
     build_payload,
-    send_webhook,
     sign_payload,
 )
+from pydantic import SecretStr
 
 
-def _payment() -> Payment:
-    return Payment(
+def _notification() -> WebhookNotification:
+    return WebhookNotification(
+        payment_id=uuid.uuid4(),
+        status=PaymentStatus.SUCCEEDED,
+        amount=Decimal("10.00"),
+        currency=Currency.USD,
+        description="order",
+        processed_at=utcnow(),
+        webhook_url="https://example.com/hook",
+    )
+
+
+def _settings(**overrides: object) -> WebhookSettings:
+    data: dict[str, object] = {
+        "timeout": 3,
+        "max_retries": 3,
+        "retry_delay": 1.0,
+        "allow_private_hosts": False,
+    }
+    data.update(overrides)
+    return WebhookSettings(**data)  # type: ignore[arg-type]
+
+
+def _response(status_code: int = 200, content: bytes = b'{"ok":true}') -> httpx.Response:
+    return httpx.Response(
+        status_code,
+        content=content,
+        request=httpx.Request("POST", "https://example.com/hook"),
+    )
+
+
+def test_build_payload_from_model() -> None:
+    payment = Payment(
         id=uuid.uuid4(),
         amount=Decimal("10.00"),
         currency=Currency.USD,
@@ -29,11 +66,7 @@ def _payment() -> Payment:
         processed_at=utcnow(),
         webhook_url="https://example.com/hook",
     )
-
-
-def test_build_payload() -> None:
-    payment = _payment()
-    payload = build_payload(payment)
+    payload = build_payload(WebhookNotification.from_payment(payment))
     assert payload["payment_id"] == str(payment.id)
     assert payload["status"] == "succeeded"
     assert payload["amount"] == "10.00"
@@ -41,32 +74,46 @@ def test_build_payload() -> None:
 
 
 async def test_send_webhook_retries_then_raises() -> None:
-    payment = _payment()
-    client = AsyncMock()
-    client.post.side_effect = httpx.ConnectError("nope")
+    sender = WebhookSender(settings=_settings(), client=AsyncMock())
+    sender.client.post.side_effect = httpx.ConnectError("nope")
 
     with (
-        patch("app.webhook.httpx.AsyncClient") as client_cls,
-        patch("app.webhook.asyncio.sleep", new=AsyncMock()) as sleep,
+        patch.object(
+            webhook, "validate_webhook_target", new=AsyncMock()
+        ),
+        patch.object(webhook.asyncio, "sleep", new=AsyncMock()) as sleep,
     ):
-        client_cls.return_value.__aenter__.return_value = client
         with pytest.raises(WebhookDeliveryError):
-            await send_webhook(payment)
+            await sender.send(_notification())
 
-    assert client.post.await_count == 3
+    assert sender.client.post.await_count == 3
     assert sleep.await_count == 2
 
 
 async def test_send_webhook_success_without_retry() -> None:
-    payment = _payment()
     client = AsyncMock()
-    client.post.return_value = httpx.Response(200, request=httpx.Request("POST", "http://x"))
+    client.post.return_value = _response()
+    sender = WebhookSender(settings=_settings(), client=client)
 
-    with patch("app.webhook.httpx.AsyncClient") as client_cls:
-        client_cls.return_value.__aenter__.return_value = client
-        await send_webhook(payment)
+    with patch.object(webhook, "validate_webhook_target", new=AsyncMock()):
+        await sender.send(_notification())
 
     assert client.post.await_count == 1
+
+
+async def test_send_webhook_rejects_unsafe_target_before_request() -> None:
+    client = AsyncMock()
+    sender = WebhookSender(settings=_settings(), client=client)
+
+    with patch.object(
+        webhook,
+        "validate_webhook_target",
+        new=AsyncMock(side_effect=UnsafeWebhookTarget("bad")),
+    ):
+        with pytest.raises(UnsafeWebhookTarget):
+            await sender.send(_notification())
+
+    client.post.assert_not_awaited()
 
 
 def test_sign_payload_is_stable() -> None:
@@ -76,23 +123,19 @@ def test_sign_payload_is_stable() -> None:
     assert sign_payload(body, "other") != sign_payload(body, "secret")
 
 
-async def test_send_webhook_sends_idempotency_and_signature(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(webhook.settings, "webhook_secret", "topsecret")
-    payment = _payment()
+async def test_send_webhook_sends_idempotency_and_signature() -> None:
     client = AsyncMock()
-    client.post.return_value = httpx.Response(
-        200, request=httpx.Request("POST", "http://x")
+    client.post.return_value = _response()
+    sender = WebhookSender(
+        settings=_settings(secret=SecretStr("topsecret")), client=client
     )
+    notification = _notification()
 
-    with patch("app.webhook.httpx.AsyncClient") as client_cls:
-        client_cls.return_value.__aenter__.return_value = client
-        await send_webhook(payment)
+    with patch.object(webhook, "validate_webhook_target", new=AsyncMock()):
+        await sender.send(notification)
 
     _, kwargs = client.post.call_args
     headers = kwargs["headers"]
     body = kwargs["content"]
-    assert headers["X-Webhook-Id"] == f"{payment.id}:succeeded"
+    assert headers["X-Webhook-Id"] == f"{notification.payment_id}:succeeded"
     assert headers["X-Webhook-Signature"] == sign_payload(body, "topsecret")
-

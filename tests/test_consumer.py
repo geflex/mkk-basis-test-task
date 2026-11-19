@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import app.consumer as consumer
-from app.schemas import PaymentCreatedEvent
+import app.workers.payment_consumer as consumer
+from app.domain.contracts import PaymentCreatedEvent
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def published() -> AsyncMock:
 async def test_failure_schedules_delayed_retry(published: AsyncMock) -> None:
     event = PaymentCreatedEvent(payment_id=uuid.uuid4())
     with patch.object(
-        consumer, "process_payment", new=AsyncMock(side_effect=RuntimeError("boom"))
+        consumer.processor, "process", new=AsyncMock(side_effect=RuntimeError("boom"))
     ):
         await consumer.handle_payment_created(event, 1)
 
@@ -33,7 +33,7 @@ async def test_failure_schedules_delayed_retry(published: AsyncMock) -> None:
 async def test_second_failure_schedules_second_retry(published: AsyncMock) -> None:
     event = PaymentCreatedEvent(payment_id=uuid.uuid4())
     with patch.object(
-        consumer, "process_payment", new=AsyncMock(side_effect=RuntimeError("boom"))
+        consumer.processor, "process", new=AsyncMock(side_effect=RuntimeError("boom"))
     ):
         await consumer.handle_payment_created(event, 2)
 
@@ -45,9 +45,11 @@ async def test_second_failure_schedules_second_retry(published: AsyncMock) -> No
 async def test_exhausted_attempts_go_to_dlq(published: AsyncMock) -> None:
     event = PaymentCreatedEvent(payment_id=uuid.uuid4())
     with patch.object(
-        consumer, "process_payment", new=AsyncMock(side_effect=RuntimeError("boom"))
+        consumer.processor, "process", new=AsyncMock(side_effect=RuntimeError("boom"))
     ):
-        await consumer.handle_payment_created(event, consumer.settings.max_attempts)
+        await consumer.handle_payment_created(
+            event, consumer.get_processing_settings().max_attempts
+        )
 
     _, kwargs = published.call_args
     assert kwargs["routing_key"] == "payments.dlq"
@@ -56,7 +58,7 @@ async def test_exhausted_attempts_go_to_dlq(published: AsyncMock) -> None:
 
 async def test_success_does_not_republish(published: AsyncMock) -> None:
     event = PaymentCreatedEvent(payment_id=uuid.uuid4())
-    with patch.object(consumer, "process_payment", new=AsyncMock()) as process:
+    with patch.object(consumer.processor, "process", new=AsyncMock()) as process:
         await consumer.handle_payment_created(event, 1)
 
     process.assert_awaited_once_with(event.payment_id)

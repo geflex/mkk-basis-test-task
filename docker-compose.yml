@@ -1,3 +1,33 @@
+# Единый набор переменных для api и consumer. Значения по умолчанию совпадают
+# с app/core/config.py, поэтому .env.example можно менять без правки compose.
+x-app-environment: &app-environment
+  API_KEY: ${API_KEY:?задайте API_KEY (см. .env.example)}
+  DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://payments:payments@postgres:5432/payments}
+  DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
+  DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-20}
+  DATABASE_POOL_RECYCLE: ${DATABASE_POOL_RECYCLE:-1800}
+  DATABASE_COMMAND_TIMEOUT: ${DATABASE_COMMAND_TIMEOUT:-30}
+  RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+  PAYMENTS_EXCHANGE: ${PAYMENTS_EXCHANGE:-payments}
+  PAYMENTS_NEW_QUEUE: ${PAYMENTS_NEW_QUEUE:-payments.new}
+  PAYMENTS_DLQ_QUEUE: ${PAYMENTS_DLQ_QUEUE:-payments.dlq}
+  RETRY_ROUTING_PREFIX: ${RETRY_ROUTING_PREFIX:-payments.retry}
+  BASE_RETRY_DELAY_MS: ${BASE_RETRY_DELAY_MS:-2000}
+  OUTBOX_POLL_INTERVAL: ${OUTBOX_POLL_INTERVAL:-1.0}
+  OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-100}
+  MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+  PROCESSING_MIN_SECONDS: ${PROCESSING_MIN_SECONDS:-2}
+  PROCESSING_MAX_SECONDS: ${PROCESSING_MAX_SECONDS:-5}
+  SUCCESS_RATE: ${SUCCESS_RATE:-0.9}
+  WEBHOOK_TIMEOUT: ${WEBHOOK_TIMEOUT:-10}
+  WEBHOOK_MAX_RETRIES: ${WEBHOOK_MAX_RETRIES:-3}
+  WEBHOOK_RETRY_DELAY: ${WEBHOOK_RETRY_DELAY:-1}
+  WEBHOOK_MAX_RESPONSE_BYTES: ${WEBHOOK_MAX_RESPONSE_BYTES:-1048576}
+  WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+  ALLOW_PRIVATE_WEBHOOK_HOSTS: ${ALLOW_PRIVATE_WEBHOOK_HOSTS:-false}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_JSON: ${LOG_JSON:-true}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -35,8 +65,7 @@ services:
     build: .
     command: ["alembic", "upgrade", "head"]
     environment:
-      API_KEY: ${API_KEY:?задайте API_KEY (см. .env.example)}
-      DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://payments:payments@postgres:5432/payments}
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,11 +75,7 @@ services:
     restart: unless-stopped
     command: ["./docker/entrypoint-api.sh"]
     environment:
-      API_KEY: ${API_KEY:?задайте API_KEY (см. .env.example)}
-      DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
-      ALLOW_PRIVATE_WEBHOOK_HOSTS: ${ALLOW_PRIVATE_WEBHOOK_HOSTS:-false}
+      <<: *app-environment
     ports:
       - "8000:8000"
     depends_on:
@@ -58,6 +83,7 @@ services:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
+    stop_grace_period: 30s
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 5s
@@ -69,15 +95,31 @@ services:
     restart: unless-stopped
     command: ["./docker/entrypoint-consumer.sh"]
     environment:
-      API_KEY: ${API_KEY:?задайте API_KEY (см. .env.example)}
-      DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      <<: *app-environment
     depends_on:
       migrate:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import base64, json, os, urllib.request;
+          q = os.environ.get("PAYMENTS_NEW_QUEUE", "payments.new");
+          req = urllib.request.Request(
+          f"http://rabbitmq:15672/api/queues/%2F/{q}",
+          headers={"Authorization": "Basic " +
+          base64.b64encode(b"guest:guest").decode()});
+          data = json.load(urllib.request.urlopen(req, timeout=3));
+          raise SystemExit(0 if data.get("consumers", 0) > 0 else 1)
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
 
 volumes:
   postgres_data:

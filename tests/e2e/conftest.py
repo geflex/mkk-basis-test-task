@@ -219,14 +219,17 @@ async def stack() -> AsyncIterator[Stack]:
 
     await asyncio.to_thread(_run_migrations)
 
-    import app.consumer  # noqa: F401  - регистрирует подписчика на брокере
-    from app.main import app as fastapi_app
+    import app.workers.payment_consumer as consumer  # noqa: F401  - регистрирует подписчика
+    from app.api.app import app as fastapi_app
 
     receiver = WebhookReceiver()
     receiver.start()
 
     lifespan = fastapi_app.router.lifespan_context(fastapi_app)
     await lifespan.__aenter__()
+    # В реальном деплое WebhookSender стартует в lifespan consumer'а; здесь
+    # worker и API живут в одном процессе, поэтому запускаем его вручную.
+    await consumer.webhook_sender.start()
 
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=fastapi_app),
@@ -242,6 +245,7 @@ async def stack() -> AsyncIterator[Stack]:
             rabbitmq_url=rabbitmq_url,
         )
     finally:
+        await consumer.webhook_sender.stop()
         await client.aclose()
         await lifespan.__aexit__(None, None, None)
         receiver.stop()

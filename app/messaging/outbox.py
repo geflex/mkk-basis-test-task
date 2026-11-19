@@ -12,12 +12,13 @@ import asyncio
 import logging
 
 from faststream.rabbit import RabbitBroker
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.broker import EXCHANGE, broker as default_broker
-from app.config import settings
-from app.models import OutboxEvent, utcnow
+from app.core.config import OutboxSettings, get_outbox_settings
+from app.db.models import OutboxEvent
+from app.db.repositories import get_unpublished_events
+from app.domain.time import utcnow
+from app.messaging.broker import EXCHANGE, broker as default_broker
 
 logger = logging.getLogger(__name__)
 
@@ -27,23 +28,20 @@ class OutboxPublisher:
         self,
         session_factory: async_sessionmaker,
         broker: RabbitBroker = default_broker,
+        settings: OutboxSettings | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._broker = broker
+        self._settings = settings or get_outbox_settings()
 
     async def publish_pending(self) -> int:
         """Публикует один батч ожидающих событий; возвращает число отправленных."""
 
         published = 0
         async with self._session_factory() as session:
-            result = await session.execute(
-                select(OutboxEvent)
-                .where(OutboxEvent.published_at.is_(None))
-                .order_by(OutboxEvent.created_at)
-                .limit(settings.outbox_batch_size)
-                .with_for_update(skip_locked=True)
+            events: list[OutboxEvent] = await get_unpublished_events(
+                session, self._settings.batch_size
             )
-            events = list(result.scalars())
 
             for event in events:
                 await self._broker.publish(
@@ -66,12 +64,15 @@ class OutboxPublisher:
     async def run(self) -> None:
         """Непрерывно пересылает ожидающие события до отмены."""
 
-        logger.info("Публикатор outbox запущен (интервал=%.2f с)", settings.outbox_poll_interval)
+        logger.info(
+            "Публикатор outbox запущен (интервал=%.2f с)",
+            self._settings.poll_interval,
+        )
         while True:
             try:
                 await self.publish_pending()
             except asyncio.CancelledError:
                 raise
-            except Exception:  # pragma: no cover - устойчивость
+            except Exception:  # pragma: no cover - устойчивость цикла
                 logger.exception("Итерация публикатора outbox завершилась ошибкой")
-            await asyncio.sleep(settings.outbox_poll_interval)
+            await asyncio.sleep(self._settings.poll_interval)

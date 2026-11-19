@@ -6,35 +6,17 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_session
-from app.models import Payment
-from app.repositories import create_payment, get_payment
-from app.schemas import PaymentCreate, PaymentCreated, PaymentDetail
-from app.security import require_api_key
+from app.api.dependencies import get_payment_service
+from app.core.security import require_api_key
+from app.domain.contracts import PaymentCreate, PaymentCreated, PaymentDetail
+from app.services.payments import PaymentService
 
 router = APIRouter(
     prefix="/api/v1/payments",
     tags=["payments"],
     dependencies=[Depends(require_api_key)],
 )
-
-
-def _matches_request(payment: Payment, payload: PaymentCreate) -> bool:
-    """Возвращает ``True``, если сохранённый платёж создан из ``payload``.
-
-    Повторное использование ``Idempotency-Key`` для *другого* запроса — ошибка
-    клиента, поэтому вызывающий код не должен молча возвращать исходный платёж.
-    """
-
-    return (
-        payment.amount == payload.amount
-        and payment.currency == payload.currency
-        and payment.description == payload.description
-        and payment.meta == payload.metadata
-        and payment.webhook_url == str(payload.webhook_url)
-    )
 
 
 @router.post(
@@ -49,7 +31,7 @@ async def create_payment_endpoint(
     idempotency_key: Annotated[
         str, Header(alias="Idempotency-Key", min_length=1, max_length=255)
     ],
-    session: Annotated[AsyncSession, Depends(get_session)],
+    service: Annotated[PaymentService, Depends(get_payment_service)],
 ) -> PaymentCreated:
     """Принимает платёж в асинхронную обработку.
 
@@ -59,14 +41,12 @@ async def create_payment_endpoint(
     а повторное использование ключа с другим телом возвращает ``409 Conflict``.
     """
 
-    payment, created = await create_payment(session, payload, idempotency_key)
+    payment, created = await service.create(payload, idempotency_key)
     if not created:
-        if not _matches_request(payment, payload):
+        if not service.matches(payment, payload):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Idempotency-Key уже использовался с другим запросом"
-                ),
+                detail="Idempotency-Key уже использовался с другим запросом",
             )
         response.headers["Idempotency-Replayed"] = "true"
 
@@ -84,11 +64,11 @@ async def create_payment_endpoint(
 )
 async def get_payment_endpoint(
     payment_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    service: Annotated[PaymentService, Depends(get_payment_service)],
 ) -> PaymentDetail:
-    payment = await get_payment(session, payment_id)
+    payment = await service.get(payment_id)
     if payment is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Платёж не найден"
         )
-    return PaymentDetail.from_model(payment)
+    return service.to_detail(payment)

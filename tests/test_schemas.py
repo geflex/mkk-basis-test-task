@@ -9,9 +9,9 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-import app.schemas as schemas
-from app.models import Currency, PaymentStatus
-from app.schemas import PaymentCreate, PaymentDetail
+from app.core.config import get_webhook_settings
+from app.domain.contracts import PaymentCreate, PaymentDetail
+from app.domain.enums import Currency, PaymentStatus
 
 
 def _payload(**overrides: Any) -> dict[str, Any]:
@@ -71,7 +71,7 @@ def test_payment_create_rejects_private_webhook(url: str) -> None:
 def test_payment_create_allows_private_webhook_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(schemas.settings, "allow_private_webhook_hosts", True)
+    monkeypatch.setattr(get_webhook_settings(), "allow_private_hosts", True)
     payload = PaymentCreate(**_payload(webhook_url="http://localhost:9000/webhook"))
     assert payload.webhook_url.host == "localhost"
 

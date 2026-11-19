@@ -2,42 +2,20 @@
 
 from __future__ import annotations
 
-import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import DateTime, Enum, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from app.domain.enums import Currency, PaymentStatus, enum_values
+from app.domain.time import utcnow
+
 
 class Base(DeclarativeBase):
     """Декларативный базовый класс."""
-
-
-def utcnow() -> datetime:
-    """Метка времени UTC с учётом часового пояса."""
-
-    return datetime.now(timezone.utc)
-
-
-def _enum_values(enum_type: type[enum.Enum]) -> list[str]:
-    """Сохраняет *значения* enum (например, ``"pending"``), а не имена членов."""
-
-    return [member.value for member in enum_type]
-
-
-class PaymentStatus(str, enum.Enum):
-    PENDING = "pending"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-
-
-class Currency(str, enum.Enum):
-    RUB = "RUB"
-    USD = "USD"
-    EUR = "EUR"
 
 
 class Payment(Base):
@@ -50,17 +28,15 @@ class Payment(Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[Currency] = mapped_column(
-        Enum(Currency, name="currency", values_callable=_enum_values), nullable=False
+        Enum(Currency, name="currency", values_callable=enum_values), nullable=False
     )
     description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    meta: Mapped[dict] = mapped_column(
-        "metadata", JSONB, nullable=False, default=dict
-    )
+    meta: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict)
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(
             PaymentStatus,
             name="payment_status",
-            values_callable=_enum_values,
+            values_callable=enum_values,
         ),
         nullable=False,
         default=PaymentStatus.PENDING,
@@ -71,7 +47,10 @@ class Payment(Base):
     )
     webhook_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        server_default=func.now(),
     )
     processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -98,7 +77,10 @@ class OutboxEvent(Base):
     routing_key: Mapped[str] = mapped_column(String(255), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now()
+        DateTime(timezone=True),
+        nullable=False,
+        default=utcnow,
+        server_default=func.now(),
     )
     published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True

@@ -11,12 +11,17 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.config import settings
+from app.core.config import get_database_settings
+
+_db = get_database_settings()
 
 engine: AsyncEngine = create_async_engine(
-    settings.database_url,
+    _db.url,
     pool_pre_ping=True,
-    future=True,
+    pool_size=_db.pool_size,
+    max_overflow=_db.max_overflow,
+    pool_recycle=_db.pool_recycle,
+    connect_args={"command_timeout": _db.command_timeout},
 )
 
 SessionFactory: async_sessionmaker[AsyncSession] = async_sessionmaker(
@@ -31,3 +36,9 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
     async with SessionFactory() as session:
         yield session
+
+
+async def dispose_engine() -> None:
+    """Закрывает пул соединений при остановке процесса."""
+
+    await engine.dispose()
