@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     webhook_timeout: float = Field(default=10.0)
     webhook_max_retries: int = Field(default=3)
     webhook_retry_delay: float = Field(default=1.0)
+    #: Reject webhook URLs that point at private/loopback/link-local hosts.
+    #: Enable only in local development, where notifications target a host on
+    #: the same machine or LAN.
+    allow_private_webhook_hosts: bool = Field(default=False)
 
 
 @lru_cache

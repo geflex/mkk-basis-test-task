@@ -137,6 +137,10 @@ python examples/webhook_receiver.py --port 9000
 # затем укажите webhook_url=http://<host>:9000/webhook при создании платежа
 ```
 
+По умолчанию webhook-адреса на приватные и loopback-хосты отклоняются (защита
+от SSRF). Для локальной отладки запустите сервис с
+`ALLOW_PRIVATE_WEBHOOK_HOSTS=true`.
+
 ## Локальный запуск без Docker
 
 ```bash
@@ -184,6 +188,7 @@ retry/DLQ и доставка webhook.
 | `WEBHOOK_TIMEOUT` | `10` | таймаут webhook, сек |
 | `WEBHOOK_MAX_RETRIES` | `3` | локальных попыток отправки webhook |
 | `WEBHOOK_RETRY_DELAY` | `1` | базовая задержка webhook-ретраев, сек |
+| `ALLOW_PRIVATE_WEBHOOK_HOSTS` | `false` | разрешить webhook на приватные/loopback-адреса (только для локальной отладки) |
 
 ## Структура проекта
 

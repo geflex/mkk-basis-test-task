@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+import app.schemas as schemas
 from app.models import Currency, PaymentStatus
 from app.schemas import PaymentCreate, PaymentDetail
 
@@ -45,6 +46,34 @@ def test_payment_create_rejects_bad_currency() -> None:
 def test_payment_create_rejects_bad_webhook() -> None:
     with pytest.raises(ValidationError):
         PaymentCreate(**_payload(webhook_url="not-a-url"))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost/hook",
+        "http://localhost./hook",
+        "http://127.0.0.1/hook",
+        "http://10.0.0.5/hook",
+        "http://192.168.1.10/hook",
+        "http://169.254.169.254/latest/meta-data",
+        "http://0.0.0.0/hook",
+        "http://[::1]/hook",
+        "http://payments.internal/hook",
+        "http://host.local/hook",
+    ],
+)
+def test_payment_create_rejects_private_webhook(url: str) -> None:
+    with pytest.raises(ValidationError):
+        PaymentCreate(**_payload(webhook_url=url))
+
+
+def test_payment_create_allows_private_webhook_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(schemas.settings, "allow_private_webhook_hosts", True)
+    payload = PaymentCreate(**_payload(webhook_url="http://localhost:9000/webhook"))
+    assert payload.webhook_url.host == "localhost"
 
 
 def test_payment_detail_serialises_metadata() -> None:
