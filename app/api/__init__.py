@@ -1,0 +1,5 @@
+"""API routers."""
+
+from app.api.payments import router as payments_router
+
+__all__ = ["payments_router"]

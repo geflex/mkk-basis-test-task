@@ -1,0 +1,28 @@
+# Version control and editor metadata
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+
+# Local Python environments and caches
+.venv
+venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local configuration and secrets
+.env
+
+# Files not needed inside the runtime image
+tests
+examples
+*.pdf
+README.md
+docker-compose.yml
+requirements-dev.txt
+pytest.ini
