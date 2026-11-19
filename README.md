@@ -136,7 +136,15 @@ curl -s $API/api/v1/payments/<payment_id> -H "X-API-Key: $KEY"
 ```bash
 python examples/webhook_receiver.py --port 9000
 # затем укажите webhook_url=http://<host>:9000/webhook при создании платежа
+
+# с проверкой подписи (должна совпадать с WEBHOOK_SECRET сервиса):
+python examples/webhook_receiver.py --port 9000 --secret <WEBHOOK_SECRET>
 ```
+
+Каждое уведомление содержит заголовок `X-Webhook-Id` (стабилен для пары
+«платёж + статус», чтобы получатель мог дедуплицировать повторы) и, если
+задан `WEBHOOK_SECRET`, заголовок `X-Webhook-Signature` вида
+`sha256=<hex>` — HMAC-SHA256 от точного тела запроса.
 
 По умолчанию webhook-адреса на приватные и loopback-хосты отклоняются (защита
 от SSRF). Для локальной отладки запустите сервис с
@@ -189,6 +197,7 @@ retry/DLQ и доставка webhook.
 | `WEBHOOK_TIMEOUT` | `10` | таймаут webhook, сек |
 | `WEBHOOK_MAX_RETRIES` | `3` | локальных попыток отправки webhook |
 | `WEBHOOK_RETRY_DELAY` | `1` | базовая задержка webhook-ретраев, сек |
+| `WEBHOOK_SECRET` | — | общий секрет для HMAC-подписи `X-Webhook-Signature` |
 | `ALLOW_PRIVATE_WEBHOOK_HOSTS` | `false` | разрешить webhook на приватные/loopback-адреса (только для локальной отладки) |
 
 ## Структура проекта

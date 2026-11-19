@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     webhook_timeout: float = Field(default=10.0)
     webhook_max_retries: int = Field(default=3)
     webhook_retry_delay: float = Field(default=1.0)
+    #: Optional shared secret. When set, notifications carry an
+    #: ``X-Webhook-Signature`` HMAC so the receiver can verify authenticity.
+    webhook_secret: str | None = Field(default=None)
     #: Reject webhook URLs that point at private/loopback/link-local hosts.
     #: Enable only in local development, where notifications target a host on
     #: the same machine or LAN.

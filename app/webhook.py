@@ -1,8 +1,17 @@
-"""Webhook delivery with its own retry/backoff."""
+"""Webhook delivery with its own retry/backoff.
+
+Notifications are sent as a deterministic JSON body so that an optional HMAC
+signature over the exact bytes can be verified by the receiver. Every request
+also carries an ``X-Webhook-Id`` header that is stable for a given
+payment/status, letting the receiver deduplicate redeliveries.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
+import json
 import logging
 
 import httpx
@@ -28,6 +37,29 @@ def build_payload(payment: Payment) -> dict:
     }
 
 
+def serialize_payload(payload: dict) -> bytes:
+    """Canonical JSON encoding of a webhook payload."""
+
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def sign_payload(body: bytes, secret: str) -> str:
+    """Return the ``sha256=<hex>`` HMAC signature for ``body``."""
+
+    digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    return f"sha256={digest}"
+
+
+def build_headers(payment: Payment, body: bytes) -> dict[str, str]:
+    headers = {
+        "Content-Type": "application/json",
+        "X-Webhook-Id": f"{payment.id}:{payment.status.value}",
+    }
+    if settings.webhook_secret:
+        headers["X-Webhook-Signature"] = sign_payload(body, settings.webhook_secret)
+    return headers
+
+
 async def send_webhook(payment: Payment) -> None:
     """POST the payment result to ``payment.webhook_url``.
 
@@ -35,13 +67,16 @@ async def send_webhook(payment: Payment) -> None:
     attempt fails the error is re-raised so the broker-level retry can kick in.
     """
 
-    payload = build_payload(payment)
+    body = serialize_payload(build_payload(payment))
+    headers = build_headers(payment, body)
     last_error: Exception | None = None
 
     for attempt in range(1, settings.webhook_max_retries + 1):
         try:
             async with httpx.AsyncClient(timeout=settings.webhook_timeout) as client:
-                response = await client.post(payment.webhook_url, json=payload)
+                response = await client.post(
+                    payment.webhook_url, content=body, headers=headers
+                )
                 response.raise_for_status()
             logger.info("Webhook delivered for payment %s (attempt %s)", payment.id, attempt)
             return
