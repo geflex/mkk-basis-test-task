@@ -17,6 +17,14 @@ from app.services.webhook import WebhookNotification, WebhookSender
 logger = logging.getLogger(__name__)
 
 
+class PaymentNotFoundError(LookupError):
+    """Событие пришло по платежу, которого нет в БД.
+
+    Не глотается в consumer'е: сообщение уходит в retry, а после исчерпания
+    попыток — в DLQ, вместо тихой потери.
+    """
+
+
 class PaymentProcessor:
     """Загружает платёж, проводит его через шлюз и отправляет webhook."""
 
@@ -39,8 +47,12 @@ class PaymentProcessor:
             # видит финальный статус и только повторно отправляет webhook.
             payment = await session.get(Payment, payment_id, with_for_update=True)
             if payment is None:
-                logger.warning("Платёж %s не найден, нечего делать", payment_id)
-                return
+                # Платёж обязан существовать: событие пишется в outbox в одной
+                # транзакции с платежом. Если его нет — это сигнал о проблеме,
+                # поэтому сообщение должно уйти в retry/DLQ, а не потеряться.
+                raise PaymentNotFoundError(
+                    f"Платёж {payment_id} не найден в БД"
+                )
 
             if payment.status == PaymentStatus.PENDING:
                 payment.status = await self._gateway.process(payment_id)

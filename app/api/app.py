@@ -10,6 +10,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.api.routers import payments_router
 from app.core.config import get_api_key_settings, get_processing_settings
@@ -44,6 +46,18 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("API остановлен")
 
 
+async def _database_ready() -> bool:
+    """Проверяет доступность БД простым запросом ``SELECT 1``."""
+
+    try:
+        async with SessionFactory() as session:
+            await session.execute(text("SELECT 1"))
+        return True
+    except Exception:  # noqa: BLE001 - readiness не должен падать сам
+        logger.exception("Readiness: проверка БД не прошла")
+        return False
+
+
 def create_app() -> FastAPI:
     configure_logging()
 
@@ -73,6 +87,28 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["system"])
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/health/live", tags=["system"])
+    async def health_live() -> dict[str, str]:
+        """Liveness: процесс жив и отвечает (без обращения к зависимостям)."""
+
+        return {"status": "ok"}
+
+    @app.get("/health/ready", tags=["system"])
+    async def health_ready() -> JSONResponse:
+        """Readiness: БД и брокер доступны, можно принимать трафик."""
+
+        database_ok = await _database_ready()
+        broker_ok = await broker.ping(timeout=2.0)
+        ready = database_ok and broker_ok
+        return JSONResponse(
+            {
+                "status": "ok" if ready else "unavailable",
+                "database": "ok" if database_ok else "fail",
+                "broker": "ok" if broker_ok else "fail",
+            },
+            status_code=200 if ready else 503,
+        )
 
     return app
 

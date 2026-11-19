@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, Numeric, String, func
+from sqlalchemy import DateTime, Enum, Index, Numeric, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -83,5 +83,17 @@ class OutboxEvent(Base):
         server_default=func.now(),
     )
     published_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, index=True
+        DateTime(timezone=True), nullable=True
+    )
+
+    #: Частичный индекс ровно под запрос релея
+    #: (``WHERE published_at IS NULL ORDER BY created_at``): индексируются
+    #: только неопубликованные строки, поэтому индекс не растёт вместе с
+    #: таблицей.
+    __table_args__ = (
+        Index(
+            "ix_outbox_unpublished_created_at",
+            "created_at",
+            postgresql_where=text("published_at IS NULL"),
+        ),
     )

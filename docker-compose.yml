@@ -85,7 +85,7 @@ services:
         condition: service_healthy
     stop_grace_period: 30s
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health/ready"]
       interval: 5s
       timeout: 5s
       retries: 12

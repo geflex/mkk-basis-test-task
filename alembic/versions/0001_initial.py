@@ -70,8 +70,12 @@ def upgrade() -> None:
         ),
         sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
     )
-    op.create_index("ix_outbox_created_at", "outbox", ["created_at"])
-    op.create_index("ix_outbox_published_at", "outbox", ["published_at"])
+    op.create_index(
+        "ix_outbox_unpublished_created_at",
+        "outbox",
+        ["created_at"],
+        postgresql_where=sa.text("published_at IS NULL"),
+    )
 
 
 def downgrade() -> None:
