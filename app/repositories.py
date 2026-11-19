@@ -42,7 +42,11 @@ async def create_payment(
     if existing is not None:
         return existing, False
 
+    # The primary key is generated client-side so that the outbox payload can
+    # reference it without an extra round-trip. Committing both rows in a single
+    # transaction is what makes the outbox pattern atomic.
     payment = Payment(
+        id=uuid.uuid4(),
         amount=payload.amount,
         currency=payload.currency,
         description=payload.description,
@@ -51,8 +55,6 @@ async def create_payment(
         webhook_url=str(payload.webhook_url),
     )
     session.add(payment)
-    await session.flush()
-
     session.add(
         OutboxEvent(
             event_type="payment.created",
@@ -62,6 +64,8 @@ async def create_payment(
     )
 
     try:
+        # ``commit`` flushes the pending INSERTs, so a concurrent request that
+        # committed first surfaces here as an ``IntegrityError`` and is caught.
         await session.commit()
     except IntegrityError:
         # A concurrent request won the race for this idempotency key.
@@ -71,5 +75,4 @@ async def create_payment(
             raise
         return existing, False
 
-    await session.refresh(payment)
     return payment, True
