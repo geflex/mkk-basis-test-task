@@ -33,7 +33,7 @@ services:
     build: .
     command: ["./docker/entrypoint-api.sh"]
     environment:
-      API_KEY: ${API_KEY:-super-secret-api-key}
+      API_KEY: ${API_KEY:?set API_KEY (see .env.example)}
       DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     ports:
@@ -53,7 +53,7 @@ services:
     build: .
     command: ["./docker/entrypoint-consumer.sh"]
     environment:
-      API_KEY: ${API_KEY:-super-secret-api-key}
+      API_KEY: ${API_KEY:?set API_KEY (see .env.example)}
       DATABASE_URL: postgresql+asyncpg://payments:payments@postgres:5432/payments
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     depends_on:

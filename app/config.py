@@ -23,7 +23,10 @@ class Settings(BaseSettings):
     )
 
     # --- HTTP API ---------------------------------------------------------
-    api_key: str = Field(default="super-secret-api-key")
+    #: Static key required in the ``X-API-Key`` header. There is deliberately
+    #: no default so a misconfigured deployment fails fast instead of starting
+    #: with a well-known key.
+    api_key: str = Field(description="Static API key for the X-API-Key header")
 
     # --- Infrastructure ---------------------------------------------------
     database_url: str = Field(

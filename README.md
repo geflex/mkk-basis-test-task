@@ -108,7 +108,7 @@ docker compose up --build
 
 ```bash
 API=http://localhost:8000
-KEY=super-secret-api-key
+KEY=change-me-in-production
 
 # Создание платежа (202 Accepted)
 curl -s -X POST $API/api/v1/payments \
@@ -151,7 +151,7 @@ pip install -r requirements.txt
 # поднимите postgres и rabbitmq (например, docker compose up postgres rabbitmq)
 export DATABASE_URL=postgresql+asyncpg://payments:payments@localhost:5432/payments
 export RABBITMQ_URL=amqp://guest:guest@localhost:5672/
-export API_KEY=super-secret-api-key
+export API_KEY=change-me-in-production
 
 alembic upgrade head                 # миграции
 uvicorn app.main:app --reload        # API
@@ -172,7 +172,7 @@ retry/DLQ и доставка webhook.
 
 | Переменная | По умолчанию | Описание |
 |---|---|---|
-| `API_KEY` | `super-secret-api-key` | статический ключ для заголовка `X-API-Key` |
+| `API_KEY` | — (обязательно) | статический ключ для заголовка `X-API-Key` |
 | `DATABASE_URL` | `postgresql+asyncpg://payments:payments@localhost:5432/payments` | DSN БД |
 | `RABBITMQ_URL` | `amqp://guest:guest@localhost:5672/` | DSN RabbitMQ |
 | `PAYMENTS_EXCHANGE` | `payments` | имя exchange |
