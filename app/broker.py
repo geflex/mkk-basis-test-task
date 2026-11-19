@@ -29,6 +29,13 @@ NEW_QUEUE = RabbitQueue(
     settings.payments_new_queue,
     durable=True,
     routing_key=settings.payments_new_queue,
+    # Rejected messages (e.g. the handler raised while scheduling a retry) are
+    # dead-lettered to the DLQ instead of being silently dropped, since the
+    # subscriber uses the default REJECT_ON_ERROR ack policy.
+    arguments={
+        "x-dead-letter-exchange": settings.payments_exchange,
+        "x-dead-letter-routing-key": settings.payments_dlq_queue,
+    },
 )
 
 DLQ = RabbitQueue(
