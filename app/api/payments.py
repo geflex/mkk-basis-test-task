@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
+from app.models import Payment
 from app.repositories import create_payment, get_payment
 from app.schemas import PaymentCreate, PaymentCreated, PaymentDetail
 from app.security import require_api_key
@@ -18,6 +19,22 @@ router = APIRouter(
     tags=["payments"],
     dependencies=[Depends(require_api_key)],
 )
+
+
+def _matches_request(payment: Payment, payload: PaymentCreate) -> bool:
+    """Return ``True`` when a stored payment was created from ``payload``.
+
+    Reusing an ``Idempotency-Key`` for a *different* request is a client
+    error, so the caller must not silently hand back the original payment.
+    """
+
+    return (
+        payment.amount == payload.amount
+        and payment.currency == payload.currency
+        and payment.description == payload.description
+        and payment.meta == payload.metadata
+        and payment.webhook_url == str(payload.webhook_url)
+    )
 
 
 @router.post(
@@ -38,11 +55,19 @@ async def create_payment_endpoint(
 
     The ``Idempotency-Key`` header makes the operation safe to repeat: sending
     the same key again returns the already created payment instead of creating
-    a new one. Replays are flagged with the ``Idempotency-Replayed`` header.
+    a new one. Replays are flagged with the ``Idempotency-Replayed`` header,
+    and reusing a key with a different body returns ``409 Conflict``.
     """
 
     payment, created = await create_payment(session, payload, idempotency_key)
     if not created:
+        if not _matches_request(payment, payload):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Idempotency-Key was already used with a different request"
+                ),
+            )
         response.headers["Idempotency-Replayed"] = "true"
 
     return PaymentCreated(
